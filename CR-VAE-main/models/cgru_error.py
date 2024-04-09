@@ -389,7 +389,10 @@ def train_phase2(crvae, vrae, X, context, lr, max_iter, lam=0, lam_ridge=0,
     mmd = (-0.5*(1+log_var - mu**2- torch.exp(log_var)).sum(dim = -1).sum(dim = 0)).mean(dim =0)
     #mmd =  sum([MMD(torch.randn(200, Y[:, :, 0].shape[-1], requires_grad = False).to(device), latent[i][:,:,0]) for i in range(p)])
     ridge = sum([ridge_regularize(net, lam_ridge) for net in crvae.networks])
-    smooth = loss + ridge + beta*mmd
+    from xx import DagmaLinear
+                         
+    loss_new,_ = model_dag._score(pred[i][:, :, 0])
+    smooth = loss + ridge + beta*mmd + loss_new
     
     
     error = (-torch.stack(pred)[:, :, :, 0].permute(1,2,0) + X[:, 10:, :]).detach()
