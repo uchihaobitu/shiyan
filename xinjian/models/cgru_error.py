@@ -12,7 +12,6 @@ import numpy as np
 from copy import deepcopy
 import matplotlib.pyplot as plt
 from metrics.visualization_metrics import visualization
-from tqdm import tqdm
 from .linear import notears_linear
 from torch.autograd import Function
 
