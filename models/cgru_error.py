@@ -53,7 +53,7 @@ class VRAE4E(nn.Module):
         """
         super(VRAE4E, self).__init__()
         # self.device = torch.device('cuda')
-        self.device = torch.device("cpu" if not torch.cuda.is_available() else "cuda:1")
+        self.device = torch.device("cpu" if not torch.cuda.is_available() else "cuda:0")
 
         self.p = num_series
         self.hidden = hidden
@@ -117,7 +117,7 @@ class CRVAE(nn.Module):
         super(CRVAE, self).__init__()
 
         # self.device = torch.device('cuda')
-        self.device = torch.device("cpu" if not torch.cuda.is_available() else "cuda:1")
+        self.device = torch.device("cpu" if not torch.cuda.is_available() else "cuda:0")
 
         self.p = num_series
         self.hidden = hidden
@@ -690,7 +690,7 @@ def train_phase1(
 
 
 
-def cal_loss_batched_torch(Xs, connections,device='cuda:1'):
+def cal_loss_batched_torch(Xs, connections,device='cuda:0'):
     batch_size, n, d = Xs.shape
     Id = torch.eye(d, dtype=torch.float32).to(device)
     Ids = Id.expand(batch_size, d, d)  # 使用expand来广播到每个批次
@@ -929,10 +929,13 @@ def train_phase3(
     # liner_loss /= len(X)
 
     X_np = X.cpu().numpy()  # X 是原始的 PyTorch tensor
-    h_model = LinearCoModel(X_np,loss_type='l2', lambda1=0.1,device='cuda')
+    h_model = LinearCoModel(loss_type='l2', lambda1=0.1,device='cuda')
     s_1=0.1
     mu_1 = 0.5
-    losses,G_grad = h_model.integrated_loss(torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1,s_1)
+    # import pdb 
+    # pdb.set_trace()
+
+    losses,G_grad = h_model.integrated_loss(pred,torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1,s_1)
     # print(X_np,X_np.shape)
     # print(crvae.connection.shape)
     # # 计算所有样本的损失和梯度
@@ -940,9 +943,9 @@ def train_phase3(
 
     # 计算平均损失
     # average_loss = np.mean(losses)
-
+    gamma = 10
     # smooth = loss + ridge + beta * mmd
-    smooth = loss + ridge + beta * mmd + losses
+    smooth = loss + ridge + beta * mmd + gamma * losses
 
     best_mmd = np.inf
 
@@ -973,8 +976,8 @@ def train_phase3(
         ).mean(dim=0)
 
         ridge = sum([ridge_regularize(net, lam_ridge) for net in crvae.networks])
-        losses,G_grad = h_model.integrated_loss(torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1,s_1)
-        smooth = loss + ridge + beta * mmd + losses
+        losses,G_grad = h_model.integrated_loss(pred,torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1,s_1)
+        smooth = loss + ridge + beta * mmd + gamma * losses
 
         # Check progress.
         if (it) % check_every == 0:
@@ -996,8 +999,8 @@ def train_phase3(
 
             ridge_t = sum([ridge_regularize(net, lam_ridge) for net in crvae.networks])
 
-            losses_t, G_grad_t = h_model.integrated_loss(torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1, s_1)
-            smooth_t = loss_t + ridge_t +losses_t # + beta*mmd_t
+            losses_t, G_grad_t = h_model.integrated_loss(pred,torch.tensor(crvae.connection,device=device,dtype=torch.float32), mu_1, s_1)
+            smooth_t = loss_t + ridge_t + gamma * losses_t # + beta*mmd_t
 
             nonsmooth = sum([regularize(net, lam) for net in crvae.networks])
             mean_loss = (smooth_t) / p

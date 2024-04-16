@@ -5,15 +5,13 @@ import typing
 import numpy as np
 
 class LinearCoModel:
-    def __init__(self, X, loss_type='l2', lambda1=0.1, device='cuda'):
+    def __init__(self, loss_type='l2', lambda1=0.1, device='cuda'):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
-        self.X = torch.tensor(X, device=self.device, dtype=torch.float32)  # 转换为 PyTorch tensor 并移到 GPU
-        self.batch_size, self.n, self.d = X.shape
-        self.Id = torch.eye(self.d, dtype=torch.float32,device=self.device)
+        # self.X = torch.tensor(X, device=self.device, dtype=torch.float32)  # 转换为 PyTorch tensor 并移到 GPU
+        # self.batch_size, self.n, self.d = X.shape
         self.loss_type = loss_type
         self.lambda1 = lambda1
         # 使用正确的einsum形式来计算协方差矩阵
-        self.cov = torch.einsum('bni,bnj->bij', self.X, self.X) / self.n
 
     def _score(self, W: torch.Tensor) -> typing.Tuple[float, torch.Tensor]:
         Ids = self.Id.expand(self.batch_size, self.d, self.d)
@@ -36,11 +34,22 @@ class LinearCoModel:
         G_h = 2 * torch.matmul(W, M_inv_transposed)
         return h, G_h
 
-    def integrated_loss(self, W: torch.Tensor, mu: float, s: float = 1.0) -> typing.Tuple[float, torch.Tensor]:
+    def integrated_loss(self,pred:typing.List[torch.Tensor], W: torch.Tensor, mu: float, s: float = 1.0) -> typing.Tuple[float, torch.Tensor]:
+        # import pdb
+        # pdb.set_trace()
+        self.X = torch.stack(pred,dim=2).squeeze(dim=3)  # 转换为 PyTorch tensor 并移到 GPU
+        self.batch_size, self.n, self.d = self.X.shape
+        self.Id = torch.eye(self.d, dtype=torch.float32,device=self.device)
+        self.cov = torch.einsum('bni,bnj->bij', self.X, self.X) / self.n
+
         score_loss, score_grad = self._score(W)
         h_loss, h_grad = self._h(W, s)
         total_loss = mu * (score_loss + self.lambda1 * torch.abs(W).sum()) + h_loss
         total_grad = mu * (score_grad + self.lambda1 * torch.sign(W)) + h_grad
+        total_loss = total_loss.mean()
+        # import pdb
+        # pdb.set_trace()
+        total_loss = total_loss / (self.d * self.d)  # 为了保持和原始代码的一致性，除以 d^2
         return total_loss.mean(), total_grad
 
 # 示例使用
