@@ -129,10 +129,19 @@ class CRVAE(nn.Module):
         self.fc_std = nn.Linear(hidden, hidden)
         self.connection = connection
 
+        # import pdb
+        # pdb.set_trace()
         # Set up networks.
         self.networks = nn.ModuleList(
-            [GRU(int(connection[:, i].sum()), hidden) for i in range(num_series)]
+            [GRU(int(connection[:, i].sum()), hidden) for i in range (num_series)]
         )
+        # gc_new_dim = max(connection.sum(0))
+        # self.networks = nn.ModuleList(
+            # [GRU(gc_new_dim, hidden) for i in range(num_series)]
+        # )
+        # self.networks = nn.ModuleList(
+        #     [LinearCoModel(int(connection[:, i].sum()), hidden) for i in range(num_series)]
+        # )
     
     def forward(self, X, noise=None, mode="train", phase=0):
         if phase == 0:
@@ -250,8 +259,28 @@ class CRVAE(nn.Module):
           GC: (p x p) matrix. Entry (i, j) indicates whether variable j is
             Granger causal of variable i.
         """
+        # import pdb
+        # pdb.set_trace()
         GC = [torch.norm(net.gru.weight_ih_l0, dim=0) for net in self.networks]
-        GC = torch.stack(GC)
+        # import pdb
+        # pdb.set_trace()
+        # GC = [g.unsqueeze(0) for g in GC]
+        connection = self.connection.copy()
+        try:
+            GC = torch.stack(GC)
+        except:
+            for i in range(connection.shape[1]):
+                # print(self.connection[:, i].sum())
+                # print(GC[i].shape)
+                for j in GC[i]:
+                    # print(j)
+                    for k in connection[:, i]:
+                        if connection[k,i] == 1:
+                            connection[k,i] = j.item()
+                            j = j + 1
+            
+            GC = torch.tensor(connection)
+        # print(GC.shape)
         # print(GC)
         if threshold:
             return (torch.abs(GC) > 0.5).int()
